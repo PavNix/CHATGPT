@@ -10,7 +10,7 @@ class ChatGptService:
         token = "sk-proj-" + token[:3:-1] if token.startswith("gpt:") else token
 
         self.client = OpenAI(
-            http_client=httpx.Client(proxy="http://18.199.183.77:49232"),
+            http_client=httpx.Client(),
             api_key=token,
             organization=organization,
             project=project_id,
