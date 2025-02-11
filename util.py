@@ -117,4 +117,17 @@ async def callback_echo_handler(update: Update, context: ContextTypes.DEFAULT_TY
 
 
 class Dialog:
-    pass
+    def __init__(self):
+        self.dialogs = {}
+
+    def get_history(self, chat_id: int):
+        return self.dialogs.get(chat_id, [])
+
+    def add_message(self, chat_id: int, role: str, content: str):
+        if chat_id not in self.dialogs:
+            self.dialogs[chat_id] = []
+        self.dialogs[chat_id].append({"role": role, "content": content})
+
+    def clear_history(self, chat_id: int):
+        if chat_id in self.dialogs:
+            del self.dialogs[chat_id]
