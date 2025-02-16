@@ -1,9 +1,22 @@
+# Env and secrets
 .env
+
+# OS-specific
 .DS_Store
+Thumbs.db
+
+# Python cache / venv
 __pycache__/
+*.py[cod]
+venv/
+.venv/
 .idea/
+
+# Audio (Voice Chat temporary files)
+*.wav
+*.ogg
+*.mp3
 
 !.idea/modules.xml
 !.idea/codeStyles/*
 !.idea/inspectionProfiles/*
-

@@ -26,6 +26,11 @@ from util import (
 )
 from credentials import CHATGPT_TOKEN, BOT_TOKEN
 
+import os
+import tempfile
+import subprocess
+import uuid
+
 warnings.filterwarnings("ignore", category=UserWarning)
 
 logging.basicConfig(
@@ -44,7 +49,8 @@ logger = logging.getLogger(__name__)
     QUIZ_ANSWER,
     TRANSLATE_CHOICE,
     TRANSLATE_INPUT,
-) = range(9)
+    VOICE_CHAT,
+) = range(10)
 
 dialog = Dialog()
 chat_gpt = ChatGptService(CHATGPT_TOKEN)
@@ -130,6 +136,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
             "talk": "Поговорити з відомою особистістю 👤",
             "quiz": "Взяти участь у квізі ❓",
             "translater": "Перекладач 🌐",
+            "voicechat": "Голосовий чат з GPT 🎙️",
             "cancel": "Завершити діалог з chat-bot",
         },
     )
@@ -154,6 +161,8 @@ async def main_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         return await quiz_start(update, context)
     elif query == "translater":
         return await translator_start(update, context)
+    elif query == "voicechat":
+        return await voice_chat_start(update, context)
     else:
         return await unknown_command(update, context, MAIN)
 
@@ -544,6 +553,125 @@ async def translator_input_message(
     return TRANSLATE_CHOICE
 
 
+# === Voice-chat ===
+async def voice_chat_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """
+    Запускає режим голосового чату з GPT.
+    """
+    logger.info("Режим голосового чату запущено.")
+    await send_text(
+        update,
+        context,
+        "Давайте розпочнемо наш голосовий чат. Чекаю на ваше голосове повідомлення.",
+    )
+    await send_image(update, context, "voice_chat")
+    await send_text_buttons(
+        update,
+        context,
+        "Якщо хочеш завершити наш діалог та повернутись в головне меню, тисни на кнопку нижче",
+        {
+            "end_btn": "Закінчити",
+        },
+    )
+
+    return VOICE_CHAT
+
+
+async def voice_chat_callback(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> int:
+    """
+    Обробляє callback від кнопки у режимі голосового чату ("end_btn").
+    """
+    query = update.callback_query.data
+    logger.info("voice_chat_callback: отримано callback '%s'", query)
+    await update.callback_query.answer()
+
+    if query == "end_btn":
+        return await start(update, context)
+
+    return VOICE_CHAT
+
+
+async def voice_message_handler(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> int:
+    """
+    Обробляє голосові повідомлення у режимі голосового чату.
+
+    1. Завантажує голосове повідомлення з Telegram і тимчасово зберігає у форматі OGG.
+    2. Конвертує OGG → WAV за допомогою ffmpeg.
+    3. Використовує SpeechRecognition для розпізнавання мовлення (Google API, українська мова).
+    4. Відправляє текст (перетворене голосове повідомлення) до ChatGPT і отримує відповідь у текстовій формі.
+    5. Перетворює текст ChatGPT у голос (gTTS) та конвертує у формат OGG, щоб надіслати голосове повідомлення користувачеві.
+    6. Видаляє тимчасові файли, щоб не засмічувати файлову систему.
+    7. Повертає стан VOICE_CHAT, дозволяючи користувачеві продовжити відправку голосових повідомлень або завершити діалог.
+    """
+    logger.info("Отримано голосове повідомлення.")
+    from speech_recognition import Recognizer, AudioFile, UnknownValueError
+    from gtts import gTTS
+
+    voice = update.message.voice
+    file_id = voice.file_id
+    new_file = await context.bot.get_file(file_id)
+
+    with tempfile.NamedTemporaryFile(suffix=".ogg", delete=False) as temp_ogg:
+        ogg_path = temp_ogg.name
+    await new_file.download_to_drive(ogg_path)
+
+    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_wav:
+        wav_path = temp_wav.name
+
+    subprocess.run(["ffmpeg", "-y", "-i", ogg_path, wav_path], check=True)
+
+    recognizer = Recognizer()
+
+    with AudioFile(wav_path) as source:
+        audio_data = recognizer.record(source)
+
+    try:
+        user_text = recognizer.recognize_google(audio_data, language="uk-UA")  # type: ignore
+        logger.info(f"Розпізнаний текст: {user_text}")
+    except UnknownValueError:
+        await send_text(
+            update, context, "Вибачте, не вдалося розпізнати голосове повідомлення."
+        )
+
+        for path in [ogg_path, wav_path]:
+            if os.path.exists(path):
+                os.remove(path)
+        return VOICE_CHAT
+
+    gpt_response = await chat_gpt.add_message(user_text)
+
+    tts = gTTS(text=gpt_response, lang="uk")
+    with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as temp_mp3:
+        mp3_path = temp_mp3.name
+    tts.save(mp3_path)
+
+    ogg_filename = f"gpt_reply_{uuid.uuid4().hex}.ogg"
+    subprocess.run(
+        ["ffmpeg", "-y", "-i", mp3_path, "-c:a", "libopus", ogg_filename], check=True
+    )
+
+    with open(ogg_filename, "rb") as ogg_file:
+        await context.bot.send_voice(chat_id=update.effective_chat.id, voice=ogg_file)
+
+    for path in [ogg_path, wav_path, mp3_path, ogg_filename]:
+        if os.path.exists(path):
+            os.remove(path)
+
+    buttons = {"end_btn": "Закінчити"}
+    await send_text_buttons(
+        update,
+        context,
+        "Надсилай нове голосове повідомлення, або тисни кнопку, щоб завершити діалог.",
+        buttons,
+    )
+
+    return VOICE_CHAT
+
+
 # === Фолбек ===
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """
@@ -562,6 +690,7 @@ conv_handler = ConversationHandler(
         CommandHandler("talk", talk_start),
         CommandHandler("quiz", quiz_start),
         CommandHandler("translater", translator_start),
+        CommandHandler("voicechat", voice_chat_start),
     ],
     states={
         MAIN: [CallbackQueryHandler(main_menu_callback)],
@@ -583,6 +712,10 @@ conv_handler = ConversationHandler(
         TRANSLATE_CHOICE: [CallbackQueryHandler(translator_choice_callback)],
         TRANSLATE_INPUT: [
             MessageHandler(filters.TEXT & (~filters.COMMAND), translator_input_message)
+        ],
+        VOICE_CHAT: [
+            MessageHandler(filters.VOICE, voice_message_handler),
+            CallbackQueryHandler(voice_chat_callback),
         ],
     },
     fallbacks=[CommandHandler("cancel", cancel)],

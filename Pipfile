@@ -7,6 +7,9 @@ name = "pypi"
 openai = "*"
 python-telegram-bot = "*"
 python-dotenv = "*"
+pydub = "*"
+gtts = "*"
+speechrecognition = "*"
 
 [dev-packages]
 
