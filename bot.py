@@ -34,7 +34,17 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Стани діалогу
-MAIN, RANDOM, GPT, TALK_CHOICE, TALK_CHAT, QUIZ_THEME, QUIZ_ANSWER, TRANSLATE_CHOICE, TRANSLATE_INPUT = range(9)
+(
+    MAIN,
+    RANDOM,
+    GPT,
+    TALK_CHOICE,
+    TALK_CHAT,
+    QUIZ_THEME,
+    QUIZ_ANSWER,
+    TRANSLATE_CHOICE,
+    TRANSLATE_INPUT,
+) = range(9)
 
 dialog = Dialog()
 chat_gpt = ChatGptService(CHATGPT_TOKEN)
@@ -153,7 +163,7 @@ async def random_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
     """
     Запускає режим |Дізнатись випадковий факт|
     """
-    logger.info("Режим \"Дізнатись випадковий факт\" запущено.")
+    logger.info('Режим "Дізнатись випадковий факт" запущено.')
     text = load_message("random")
     await send_image(update, context, "random")
     await send_text(update, context, text)
@@ -185,7 +195,7 @@ async def gpt_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """
     Запускає режим |GPT-чат|
     """
-    logger.info("Режим \"GPT-чат\" запущено.")
+    logger.info('Режим "GPT-чат" запущено.')
     context.user_data["mode"] = "gpt"
     dialog.clear_history(update.effective_chat.id)
     prompt = load_prompt("gpt")
@@ -233,7 +243,7 @@ async def talk_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """
     Запускає режим |Поговорити з відомою особистістю|
     """
-    logger.info("Режим \"Поговорити з відомою особистістю\" запущено.")
+    logger.info('Режим "Поговорити з відомою особистістю" запущено.')
     context.user_data["mode"] = "talk"
     await send_image(update, context, "talk")
     text = load_message("talk")
@@ -286,7 +296,9 @@ async def talk_chat_message(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     if not update.message or not update.message.text:
         return TALK_CHAT
     user_message = update.message.text
-    logger.info("\"Поговорити з відомою особистістю\": отримано повідомлення: %s", user_message)
+    logger.info(
+        '"Поговорити з відомою особистістю": отримано повідомлення: %s', user_message
+    )
     dialog.add_message(update.effective_chat.id, "user", user_message)
     try:
         content = await chat_gpt.add_message(user_message)
@@ -297,7 +309,7 @@ async def talk_chat_message(update: Update, context: ContextTypes.DEFAULT_TYPE) 
             {"talk": "Інша особистість", "end_btn": "Закінчити"},
         )
     except Exception as e:
-        logger.error("Помилка в режимі \"Поговорити з відомою особистістю\": %s", e)
+        logger.error('Помилка в режимі "Поговорити з відомою особистістю": %s', e)
         await send_text(update, context, f"Сталася помилка: {e}")
     return TALK_CHAT
 
@@ -307,7 +319,7 @@ async def talk_chat_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
     Callback для режиму |Поговорити з відомою особистістю|
     """
     query = update.callback_query.data
-    logger.info("\"Поговорити з відомою особистістю\" callback: %s", query)
+    logger.info('"Поговорити з відомою особистістю" callback: %s', query)
     await answer_callback(update)
     if query == "end_btn":
         return await start(update, context)
@@ -321,7 +333,7 @@ async def quiz_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """
     Запускає режим |Квіз|
     """
-    logger.info("Режим \"Квіз\" запущено.")
+    logger.info('Режим "Квіз" запущено.')
     context.user_data["mode"] = "quiz"
     dialog.clear_history(update.effective_chat.id)
     quiz_themes = get_quiz_themes()
@@ -374,7 +386,7 @@ async def quiz_theme_callback(
                 f"Згенеруй нове питання для теми {display_name}", ""
             )
             question_text = new_q.strip()
-            logger.debug("Режим \"Квіз\": згенеровано нове питання.")
+            logger.debug('Режим "Квіз": згенеровано нове питання.')
         dialog.add_quiz_question(update.effective_chat.id, question_text)
 
         expected_prompt = (
@@ -387,7 +399,7 @@ async def quiz_theme_callback(
         expected_response = await chat_gpt.send_question(expected_prompt, "")
         expected_answers = [ans.strip().lower() for ans in expected_response.split(",")]
         context.user_data["expected_answers"] = expected_answers
-        logger.info("Режим \"Квіз\": збережено очікувані відповіді.")
+        logger.info('Режим "Квіз": збережено очікувані відповіді.')
 
         await send_text_buttons(
             update,
@@ -426,7 +438,9 @@ async def quiz_answer_handler(
     if is_correct_answer(user_answer, expected_answers):
         dialog.increment_correct_answers(update.effective_chat.id)
         correct_count = dialog.get_correct_answers(update.effective_chat.id)
-        logger.info("Режим \"Квіз\": відповідь правильна. Поточний лічильник: %d", correct_count)
+        logger.info(
+            'Режим "Квіз": відповідь правильна. Поточний лічильник: %d', correct_count
+        )
         await send_text_buttons(
             update,
             context,
@@ -438,7 +452,10 @@ async def quiz_answer_handler(
             },
         )
     else:
-        logger.info("Режим \"Квіз\": відповідь неправильна. Очікувані відповіді: %s", expected_answers)
+        logger.info(
+            'Режим "Квіз": відповідь неправильна. Очікувані відповіді: %s',
+            expected_answers,
+        )
         await send_text_buttons(
             update,
             context,
@@ -466,7 +483,9 @@ async def translator_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     return TRANSLATE_CHOICE
 
 
-async def translator_choice_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def translator_choice_callback(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> int:
     """
     Обробляє вибір мови для перекладу.
     """
@@ -482,15 +501,13 @@ async def translator_choice_callback(update: Update, context: ContextTypes.DEFAU
     context.user_data["language_to_cmd"] = query
     context.user_data["language_to"] = languages.get(query, query)
 
-    await send_text(
-        update,
-        context,
-        "Надішліть текст, який потрібно перекласти:"
-    )
+    await send_text(update, context, "Надішліть текст, який потрібно перекласти:")
     return TRANSLATE_INPUT
 
 
-async def translator_input_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def translator_input_message(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> int:
     """
     Обробляє текстове повідомлення, яке потрібно перекласти, та надсилає переклад.
     """
@@ -564,7 +581,9 @@ conv_handler = ConversationHandler(
             CallbackQueryHandler(quiz_theme_callback),
         ],
         TRANSLATE_CHOICE: [CallbackQueryHandler(translator_choice_callback)],
-        TRANSLATE_INPUT: [MessageHandler(filters.TEXT & (~filters.COMMAND), translator_input_message)],
+        TRANSLATE_INPUT: [
+            MessageHandler(filters.TEXT & (~filters.COMMAND), translator_input_message)
+        ],
     },
     fallbacks=[CommandHandler("cancel", cancel)],
     per_chat=True,

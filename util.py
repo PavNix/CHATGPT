@@ -16,6 +16,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 def dialog_user_info_to_str(user_data: Dict[str, Any]) -> str:
     """
     Конвертує обʼєкт user_data у рядок з відображенням ключів на основі мапінгу.
@@ -86,7 +87,10 @@ async def send_html(
 
 
 async def send_text_buttons(
-    update: Update, context: ContextTypes.DEFAULT_TYPE, text: str, buttons: Dict[str, str]
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+    text: str,
+    buttons: Dict[str, str],
 ) -> Message:
     """
     Надсилає текстове повідомлення з кнопками.
@@ -210,7 +214,9 @@ def load_prompt(name: str) -> str:
         return ""
 
 
-async def callback_echo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def callback_echo_handler(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
     """
     Простий callback-обробник, який відповідає з підтвердженням натискання кнопки.
 
@@ -267,6 +273,7 @@ class Dialog:
     """
     Клас для управління історією діалогу та квізів.
     """
+
     def __init__(self) -> None:
         """
         Ініціалізує історію діалогів, історію квізів та лічильники правильних відповідей.
@@ -351,7 +358,9 @@ class Dialog:
         if chat_id not in self.correct_answers:
             self.correct_answers[chat_id] = 0
         self.correct_answers[chat_id] += 1
-        logger.debug("Чат %d: правильних відповідей %d", chat_id, self.correct_answers[chat_id])
+        logger.debug(
+            "Чат %d: правильних відповідей %d", chat_id, self.correct_answers[chat_id]
+        )
 
     def get_correct_answers(self, chat_id: int) -> int:
         """

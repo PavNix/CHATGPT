@@ -4,6 +4,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 class ChatGptService:
     """
     Сервіс для спілкування з ChatGPT через OpenAI API.
@@ -27,7 +28,6 @@ class ChatGptService:
             api_key=token,
         )
         self.message_list = []
-
 
     async def send_message_list(self) -> str:
         """
