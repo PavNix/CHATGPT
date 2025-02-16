@@ -21,6 +21,7 @@ from util import (
     send_text_buttons,
     load_prompt,
     is_correct_answer,
+    dialog_user_info_to_str,
     Dialog,
 )
 from credentials import CHATGPT_TOKEN, BOT_TOKEN
@@ -33,7 +34,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Стани діалогу
-MAIN, RANDOM, GPT, TALK_CHOICE, TALK_CHAT, QUIZ_THEME, QUIZ_ANSWER = range(7)
+MAIN, RANDOM, GPT, TALK_CHOICE, TALK_CHAT, QUIZ_THEME, QUIZ_ANSWER, TRANSLATE_CHOICE, TRANSLATE_INPUT = range(9)
 
 dialog = Dialog()
 chat_gpt = ChatGptService(CHATGPT_TOKEN)
@@ -61,6 +62,20 @@ def get_quiz_themes() -> dict:
         "quiz_prog": "Програмування мовою Python",
         "quiz_math": "Математичні теорії",
         "quiz_biology": "Біологія",
+        "end_btn": "До головного меню",
+    }
+
+
+def get_translation_languages() -> dict:
+    """
+    Повертає словник мов для перекладу.
+    """
+    return {
+        "to_en": "Англійська",
+        "to_uk": "Українська",
+        "to_cs": "Чеська",
+        "to_es": "Іспанська",
+        "to_fr": "Французька",
         "end_btn": "До головного меню",
     }
 
@@ -104,6 +119,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
             "gpt": "Задати питання чату GPT 🤖",
             "talk": "Поговорити з відомою особистістю 👤",
             "quiz": "Взяти участь у квізі ❓",
+            "translater": "Перекладач 🌐",
             "cancel": "Завершити діалог з chat-bot",
         },
     )
@@ -126,6 +142,8 @@ async def main_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         return await talk_start(update, context)
     elif query == "quiz":
         return await quiz_start(update, context)
+    elif query == "translater":
+        return await translator_start(update, context)
     else:
         return await unknown_command(update, context, MAIN)
 
@@ -434,6 +452,81 @@ async def quiz_answer_handler(
     return QUIZ_THEME
 
 
+# === Режим |Перекладач| ===
+async def translator_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """
+    Запускає режим /translater (перекладач). Пропонує вибрати мову для перекладу.
+    """
+    logger.info("Запуск режиму Перекладач.")
+    context.user_data["mode"] = "translater"
+    await send_image(update, context, "translater")
+    text = "Оберіть мову, на яку потрібно перекласти текст:"
+    languages = get_translation_languages()
+    await send_text_buttons(update, context, text, languages)
+    return TRANSLATE_CHOICE
+
+
+async def translator_choice_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """
+    Обробляє вибір мови для перекладу.
+    """
+    query = update.callback_query.data
+    logger.info("Перекладач: вибір мови '%s'", query)
+    await answer_callback(update)
+    if query == "end_btn":
+        return await start(update, context)
+    elif query == "translater":
+        return await translator_start(update, context)
+
+    languages = get_translation_languages()
+    context.user_data["language_to_cmd"] = query
+    context.user_data["language_to"] = languages.get(query, query)
+
+    await send_text(
+        update,
+        context,
+        "Надішліть текст, який потрібно перекласти:"
+    )
+    return TRANSLATE_INPUT
+
+
+async def translator_input_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """
+    Обробляє текстове повідомлення, яке потрібно перекласти, та надсилає переклад.
+    """
+    if not update.message or not update.message.text:
+        return TRANSLATE_INPUT
+    original_text = update.message.text.strip()
+    logger.info("Перекладач: отримано текст для перекладу: %s", original_text)
+    context.user_data["text_to_translate"] = original_text
+    context.user_data["language_from"] = "auto"
+
+    # Формується запит до ChatGPT для перекладу
+    original_prompt = load_prompt("translater")
+    target_language = context.user_data.get("language_to", "Англійська")
+    prompt_text = original_prompt.format(target_language=target_language)
+    logger.info("Перекладач: формування запиту з prompt: %s", prompt_text)
+    translation = await chat_gpt.send_question(prompt_text, original_text)
+
+    # Формуються дані діалогу для відображення
+    translation_info = {
+        "language_from": context.user_data.get("language_from", "auto"),
+        "language_to": target_language,
+        "text_to_translate": original_text,
+    }
+    info_str = dialog_user_info_to_str(translation_info)
+
+    # Надсилається результат перекладу разом з інформацією про параметри
+    result_text = f"{translation}\n\n---\n{info_str}"
+    await send_text_buttons(
+        update,
+        context,
+        result_text,
+        {"translater": "Змінити мову", "end_btn": "Головне меню"},
+    )
+    return TRANSLATE_CHOICE
+
+
 # === Фолбек ===
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """
@@ -451,6 +544,7 @@ conv_handler = ConversationHandler(
         CommandHandler("gpt", gpt_start),
         CommandHandler("talk", talk_start),
         CommandHandler("quiz", quiz_start),
+        CommandHandler("translater", translator_start),
     ],
     states={
         MAIN: [CallbackQueryHandler(main_menu_callback)],
@@ -469,6 +563,8 @@ conv_handler = ConversationHandler(
             MessageHandler(filters.TEXT & (~filters.COMMAND), quiz_answer_handler),
             CallbackQueryHandler(quiz_theme_callback),
         ],
+        TRANSLATE_CHOICE: [CallbackQueryHandler(translator_choice_callback)],
+        TRANSLATE_INPUT: [MessageHandler(filters.TEXT & (~filters.COMMAND), translator_input_message)],
     },
     fallbacks=[CommandHandler("cancel", cancel)],
     per_chat=True,
