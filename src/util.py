@@ -13,6 +13,7 @@ from telegram.ext import ContextTypes
 from typing import Dict, Any, List
 
 import logging
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -132,7 +133,9 @@ async def send_image(
         Message: Надіслане повідомлення з фото.
     """
     logger.debug("send_image: завантаження зображення %s", name)
-    with open(f"resources/images/{name}.jpg", "rb") as image:
+    base_dir = os.path.join(os.path.dirname(__file__), "..", "resources")
+    image_path = os.path.join(base_dir, "images", f"{name}.jpg")
+    with open(image_path, "rb") as image:
         return await context.bot.send_photo(
             chat_id=update.effective_chat.id, photo=image
         )
@@ -186,7 +189,9 @@ def load_message(name: str) -> str:
         str: Вміст файлу.
     """
     try:
-        with open(f"resources/messages/{name}.txt", "r", encoding="utf8") as file:
+        base_dir = os.path.join(os.path.dirname(__file__), "..", "resources")
+        message_path = os.path.join(base_dir, "messages", f"{name}.txt")
+        with open(message_path, "r", encoding="utf8") as file:
             content = file.read()
             logger.debug("load_message: %s", name)
             return content
@@ -205,7 +210,9 @@ def load_prompt(name: str) -> str:
         str: Вміст файлу.
     """
     try:
-        with open(f"resources/prompts/{name}.txt", "r", encoding="utf8") as file:
+        base_dir = os.path.join(os.path.dirname(__file__), "..", "resources")
+        prompt_path = os.path.join(base_dir, "prompts", f"{name}.txt")
+        with open(prompt_path, "r", encoding="utf8") as file:
             content = file.read()
             logger.debug("load_prompt: %s", name)
             return content

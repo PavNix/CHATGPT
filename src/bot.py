@@ -12,8 +12,8 @@ from telegram.ext import (
     filters,
 )
 
-from gpt import ChatGptService
-from util import (
+from src.gpt import ChatGptService
+from src.util import (
     load_message,
     send_text,
     send_image,
@@ -24,7 +24,7 @@ from util import (
     dialog_user_info_to_str,
     Dialog,
 )
-from credentials import CHATGPT_TOKEN, BOT_TOKEN
+from src.credentials import CHATGPT_TOKEN, BOT_TOKEN
 
 import os
 import tempfile
@@ -559,6 +559,7 @@ async def voice_chat_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     Запускає режим голосового чату з GPT.
     """
     logger.info("Режим голосового чату запущено.")
+    chat_gpt.message_list.clear()
     await send_text(
         update,
         context,
